@@ -1,0 +1,57 @@
+{
+  "name": "gemini-mail-enterprise",
+  "version": "2.0.0",
+  "description": "Gemini Mail Enterprise - Correo empresarial con AI",
+  "private": true,
+  "author": "Tu Empresa",
+  "license": "MIT",
+  "scripts": {
+    "start": "docker compose up -d",
+    "stop": "docker compose down",
+    "restart": "docker compose restart",
+    "logs": "docker compose logs -f",
+    "ps": "docker compose ps",
+    "build": "docker compose build",
+    "rebuild": "docker compose build --no-cache",
+    "dev": "docker compose -f docker-compose.yml -f docker-compose.dev.yml up",
+    "test": "docker compose exec backend npm test",
+    "test:frontend": "docker compose exec frontend npm test",
+    "health": "docker compose ps",
+    "clean": "docker compose down -v",
+    "backup": "bash scripts/backup.sh",
+    "restore": "bash scripts/restore.sh",
+    "migrate": "docker compose exec backend npm run migrate",
+    "seed": "docker compose exec backend npm run seed"
+  },
+  "engines": {
+    "node": "20.x",
+    "npm": "10.x",
+    "docker": "20.10+",
+    "docker-compose": "2.0+"
+  },
+  "workspaces": [
+    "packages/backend",
+    "packages/frontend",
+    "packages/desktop",
+    "packages/mobile"
+  ],
+  "devDependencies": {
+    "lerna": "^7.0.0"
+  },
+  "keywords": [
+    "gemini",
+    "mail",
+    "enterprise",
+    "docker",
+    "node",
+    "react"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/tu-usuario/gemini-mail-enterprise.git"
+  },
+  "bugs": {
+    "url": "https://github.com/tu-usuario/gemini-mail-enterprise/issues"
+  },
+  "homepage": "https://github.com/tu-usuario/gemini-mail-enterprise#readme"
+}
