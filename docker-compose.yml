@@ -40,7 +40,7 @@ services:
     ports:
       - "127.0.0.1:16379:6379"
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD", "sh", "-c", "redis-cli -a $$(cat /run/secrets/redis_password) ping | grep -q PONG"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -54,7 +54,7 @@ services:
   backend:
     build:
       context: ./packages/backend
-      dockerfile: Dockerfile
+      dockerfile: ../../Dockerfile-backend
     image: gemini-mail-backend:latest
     container_name: gemini-mail-backend
     restart: unless-stopped
@@ -84,7 +84,7 @@ services:
       redis:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8000/api/health"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -98,24 +98,20 @@ services:
   frontend:
     build:
       context: ./packages/frontend
-      dockerfile: Dockerfile
+      dockerfile: ../../Dockerfile-frontend
     image: gemini-mail-frontend:latest
     container_name: gemini-mail-frontend
     restart: unless-stopped
-    working_dir: /app
     environment:
       NODE_ENV: production
       VITE_API_URL: http://127.0.0.1:7098
       VITE_APP_NAME: Gemini Mail Enterprise
-    volumes:
-      - ./packages/frontend:/app
-      - /app/node_modules
     ports:
       - "127.0.0.1:8173:3000"
     depends_on:
       - backend
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000/"]
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000/"]
       interval: 30s
       timeout: 10s
       retries: 3

@@ -1,20 +1,42 @@
 # Backend Dockerfile - Gemini Mail Enterprise
 
-FROM node:20-alpine
+# Build stage - for any build dependencies
+FROM node:20-alpine AS builder
 
 WORKDIR /app
 
-# Install dependencies
+# Copy package files
 COPY package*.json ./
 
-# Install production dependencies
-RUN npm ci --only=production && \
-    npm cache clean --force
+# Install all dependencies (including devDependencies for build)
+RUN npm ci
 
 # Copy application code
 COPY . .
 
 # Create logs directory
+RUN mkdir -p logs
+
+# Production stage
+FROM node:20-alpine
+
+WORKDIR /app
+
+# Install PM2 for production process management
+RUN npm install -g pm2
+
+# Copy package files
+COPY package*.json ./
+
+# Install production dependencies only
+RUN npm ci --only=production && \
+    npm cache clean --force
+
+# Copy application code from builder
+COPY --from=builder /app/src ./src
+COPY --from=builder /app/logs ./logs
+
+# Create logs directory if not exists
 RUN mkdir -p logs
 
 # Expose port
@@ -24,5 +46,5 @@ EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=10s --start-period=20s --retries=3 \
   CMD node -e "require('http').get('http://localhost:8000/api/health', (r) => {if (r.statusCode !== 200) throw new Error(r.statusCode)})"
 
-# Start application
-CMD ["node", "src/server.js"]
+# Start application with PM2 in no-daemon mode
+CMD ["pm2-runtime", "start", "src/server.js", "--name", "gemini-backend", "--max-memory-restart", "500M"]
