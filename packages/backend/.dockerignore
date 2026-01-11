@@ -3,15 +3,20 @@ node_modules
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+pnpm-debug.log*
 package-lock.json
 yarn.lock
+pnpm-lock.yaml
 
 # Testing
 coverage
 *.test.js
 *.spec.js
+*.test.ts
+*.spec.ts
 __tests__
 __mocks__
+.nyc_output
 
 # Development
 .env
@@ -24,18 +29,21 @@ logs
 *.seed
 *.pid.lock
 
-# IDE
+# IDE & Editors
 .vscode
 .idea
 *.swp
 *.swo
 *~
 .DS_Store
+.sublime-project
+.sublime-workspace
 
 # Git
 .git
 .gitignore
 .gitattributes
+.github
 
 # Docker
 Dockerfile
@@ -44,18 +52,35 @@ docker-compose*.yml
 
 # Documentation
 README.md
+CHANGELOG.md
+LICENSE
 *.md
 docs
 
 # CI/CD
-.github
 .gitlab-ci.yml
 .travis.yml
+.circleci
 Jenkinsfile
+azure-pipelines.yml
+
+# Build output (not needed in source copy)
+dist
+build
+.cache
 
 # Misc
 tmp
 temp
-.cache
-dist
-build
+*.tmp
+.eslintcache
+.parcel-cache
+
+# OS
+Thumbs.db
+.windows-build-tools
+
+# Database files (should not be in source)
+*.db
+*.sqlite
+*.sqlite3
