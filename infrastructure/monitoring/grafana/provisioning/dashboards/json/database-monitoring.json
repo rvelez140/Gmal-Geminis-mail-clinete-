@@ -1,0 +1,268 @@
+{
+  "dashboard": {
+    "title": "Gemini Mail - Database Monitoring",
+    "tags": ["gemini-mail", "postgresql", "database"],
+    "timezone": "browser",
+    "schemaVersion": 16,
+    "version": 1,
+    "refresh": "30s",
+    "time": {
+      "from": "now-1h",
+      "to": "now"
+    },
+    "panels": [
+      {
+        "title": "Database Status",
+        "type": "stat",
+        "gridPos": {"x": 0, "y": 0, "w": 4, "h": 4},
+        "targets": [
+          {
+            "expr": "up{job=\"postgresql\"}",
+            "legendFormat": "PostgreSQL"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"value": 0, "color": "red"},
+                {"value": 1, "color": "green"}
+              ]
+            },
+            "mappings": [
+              {"value": 1, "text": "ONLINE"},
+              {"value": 0, "text": "OFFLINE"}
+            ]
+          }
+        }
+      },
+      {
+        "title": "Active Connections",
+        "type": "stat",
+        "gridPos": {"x": 4, "y": 0, "w": 4, "h": 4},
+        "targets": [
+          {
+            "expr": "pg_stat_database_numbackends{datname=\"gemini_mail\"}",
+            "legendFormat": "Connections"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "short",
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"value": 0, "color": "green"},
+                {"value": 50, "color": "yellow"},
+                {"value": 80, "color": "red"}
+              ]
+            }
+          }
+        }
+      },
+      {
+        "title": "Database Size",
+        "type": "stat",
+        "gridPos": {"x": 8, "y": 0, "w": 4, "h": 4},
+        "targets": [
+          {
+            "expr": "pg_database_size_bytes{datname=\"gemini_mail\"} / 1024 / 1024 / 1024",
+            "legendFormat": "Size (GB)"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "decgbytes",
+            "decimals": 2
+          }
+        }
+      },
+      {
+        "title": "Transactions per Second",
+        "type": "stat",
+        "gridPos": {"x": 12, "y": 0, "w": 4, "h": 4},
+        "targets": [
+          {
+            "expr": "rate(pg_stat_database_xact_commit{datname=\"gemini_mail\"}[5m])",
+            "legendFormat": "TPS"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "ops",
+            "decimals": 2
+          }
+        }
+      },
+      {
+        "title": "Cache Hit Ratio",
+        "type": "gauge",
+        "gridPos": {"x": 16, "y": 0, "w": 8, "h": 4},
+        "targets": [
+          {
+            "expr": "sum(pg_stat_database_blks_hit{datname=\"gemini_mail\"}) / (sum(pg_stat_database_blks_hit{datname=\"gemini_mail\"}) + sum(pg_stat_database_blks_read{datname=\"gemini_mail\"})) * 100",
+            "legendFormat": "Cache Hit %"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "min": 0,
+            "max": 100,
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"value": 0, "color": "red"},
+                {"value": 80, "color": "yellow"},
+                {"value": 95, "color": "green"}
+              ]
+            }
+          }
+        }
+      },
+      {
+        "title": "Connections Over Time",
+        "type": "graph",
+        "gridPos": {"x": 0, "y": 4, "w": 12, "h": 6},
+        "targets": [
+          {
+            "expr": "pg_stat_database_numbackends{datname=\"gemini_mail\"}",
+            "legendFormat": "Active Connections"
+          },
+          {
+            "expr": "pg_settings_max_connections",
+            "legendFormat": "Max Connections"
+          }
+        ],
+        "yaxes": [
+          {"format": "short", "label": "Connections"},
+          {"format": "short"}
+        ]
+      },
+      {
+        "title": "Query Performance",
+        "type": "graph",
+        "gridPos": {"x": 12, "y": 4, "w": 12, "h": 6},
+        "targets": [
+          {
+            "expr": "rate(pg_stat_database_tup_returned{datname=\"gemini_mail\"}[5m])",
+            "legendFormat": "Rows Returned/s"
+          },
+          {
+            "expr": "rate(pg_stat_database_tup_fetched{datname=\"gemini_mail\"}[5m])",
+            "legendFormat": "Rows Fetched/s"
+          },
+          {
+            "expr": "rate(pg_stat_database_tup_inserted{datname=\"gemini_mail\"}[5m])",
+            "legendFormat": "Rows Inserted/s"
+          },
+          {
+            "expr": "rate(pg_stat_database_tup_updated{datname=\"gemini_mail\"}[5m])",
+            "legendFormat": "Rows Updated/s"
+          },
+          {
+            "expr": "rate(pg_stat_database_tup_deleted{datname=\"gemini_mail\"}[5m])",
+            "legendFormat": "Rows Deleted/s"
+          }
+        ],
+        "yaxes": [
+          {"format": "ops", "label": "Operations/sec"},
+          {"format": "short"}
+        ]
+      },
+      {
+        "title": "Transaction Rate",
+        "type": "graph",
+        "gridPos": {"x": 0, "y": 10, "w": 12, "h": 6},
+        "targets": [
+          {
+            "expr": "rate(pg_stat_database_xact_commit{datname=\"gemini_mail\"}[5m])",
+            "legendFormat": "Commits/s"
+          },
+          {
+            "expr": "rate(pg_stat_database_xact_rollback{datname=\"gemini_mail\"}[5m])",
+            "legendFormat": "Rollbacks/s"
+          }
+        ],
+        "yaxes": [
+          {"format": "ops", "label": "Transactions/sec"},
+          {"format": "short"}
+        ]
+      },
+      {
+        "title": "Deadlocks & Conflicts",
+        "type": "graph",
+        "gridPos": {"x": 12, "y": 10, "w": 12, "h": 6},
+        "targets": [
+          {
+            "expr": "rate(pg_stat_database_deadlocks{datname=\"gemini_mail\"}[5m])",
+            "legendFormat": "Deadlocks/s"
+          },
+          {
+            "expr": "rate(pg_stat_database_conflicts{datname=\"gemini_mail\"}[5m])",
+            "legendFormat": "Conflicts/s"
+          }
+        ],
+        "yaxes": [
+          {"format": "ops", "label": "Events/sec"},
+          {"format": "short"}
+        ],
+        "alert": {
+          "conditions": [
+            {
+              "evaluator": {"params": [0], "type": "gt"},
+              "operator": {"type": "and"},
+              "query": {"params": ["A", "5m", "now"]},
+              "reducer": {"params": [], "type": "avg"},
+              "type": "query"
+            }
+          ],
+          "frequency": "60s",
+          "handler": 1,
+          "name": "Database Deadlocks Detected",
+          "notifications": []
+        }
+      },
+      {
+        "title": "Disk I/O",
+        "type": "graph",
+        "gridPos": {"x": 0, "y": 16, "w": 12, "h": 6},
+        "targets": [
+          {
+            "expr": "rate(pg_stat_database_blks_read{datname=\"gemini_mail\"}[5m])",
+            "legendFormat": "Blocks Read/s (Disk)"
+          },
+          {
+            "expr": "rate(pg_stat_database_blks_hit{datname=\"gemini_mail\"}[5m])",
+            "legendFormat": "Blocks Hit/s (Cache)"
+          }
+        ],
+        "yaxes": [
+          {"format": "ops", "label": "Blocks/sec"},
+          {"format": "short"}
+        ]
+      },
+      {
+        "title": "Temporary Files",
+        "type": "graph",
+        "gridPos": {"x": 12, "y": 16, "w": 12, "h": 6},
+        "targets": [
+          {
+            "expr": "rate(pg_stat_database_temp_files{datname=\"gemini_mail\"}[5m])",
+            "legendFormat": "Temp Files Created/s"
+          },
+          {
+            "expr": "rate(pg_stat_database_temp_bytes{datname=\"gemini_mail\"}[5m]) / 1024 / 1024",
+            "legendFormat": "Temp Data Written (MB/s)"
+          }
+        ],
+        "yaxes": [
+          {"format": "short", "label": "Files/sec"},
+          {"format": "decmbytes", "label": "MB/sec"}
+        ]
+      }
+    ]
+  },
+  "overwrite": true
+}

@@ -1,0 +1,182 @@
+# Promtail Configuration for Log Shipping to Loki
+# Collects logs from Docker containers and application log files
+
+server:
+  http_listen_port: 9080
+  grpc_listen_port: 0
+  log_level: info
+
+# Position file to track log reading progress
+positions:
+  filename: /tmp/positions.yaml
+
+# Loki server configuration
+clients:
+  - url: http://loki:3100/loki/api/v1/push
+    batchwait: 1s
+    batchsize: 1048576
+    timeout: 10s
+
+# Scrape configurations
+scrape_configs:
+  # Docker container logs via mounted socket
+  - job_name: docker
+    docker_sd_configs:
+      - host: unix:///var/run/docker.sock
+        refresh_interval: 5s
+        filters:
+          - name: label
+            values: ["com.docker.compose.project=gemini-mail"]
+    relabel_configs:
+      # Set container name as label
+      - source_labels: ['__meta_docker_container_name']
+        regex: '/(.*)'
+        target_label: 'container'
+      # Set container image as label
+      - source_labels: ['__meta_docker_container_log_stream']
+        target_label: 'stream'
+      # Add service label from compose
+      - source_labels: ['__meta_docker_container_label_com_docker_compose_service']
+        target_label: 'service'
+      # Add project label
+      - source_labels: ['__meta_docker_container_label_com_docker_compose_project']
+        target_label: 'project'
+    pipeline_stages:
+      # Parse JSON logs
+      - json:
+          expressions:
+            level: level
+            timestamp: timestamp
+            message: message
+            traceId: traceId
+            spanId: spanId
+      # Extract log level
+      - labels:
+          level:
+      # Parse timestamp
+      - timestamp:
+          source: timestamp
+          format: RFC3339Nano
+      # Add trace ID as label if present
+      - labels:
+          traceId:
+      # Output formatting
+      - output:
+          source: message
+
+  # Backend application logs from file
+  - job_name: backend-logs
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: backend-logs
+          service: backend
+          __path__: /var/log/backend/*.log
+    pipeline_stages:
+      # Multi-line log aggregation (for stack traces)
+      - multiline:
+          firstline: '^\d{4}-\d{2}-\d{2}'
+          max_wait_time: 3s
+      # Parse structured logs
+      - regex:
+          expression: '^(?P<timestamp>\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z) \[(?P<level>\w+)\] (?P<message>.*)$'
+      # Extract labels
+      - labels:
+          level:
+      # Parse timestamp
+      - timestamp:
+          source: timestamp
+          format: RFC3339
+      # Output
+      - output:
+          source: message
+
+  # PostgreSQL logs
+  - job_name: postgresql-logs
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: postgresql-logs
+          service: database
+          __path__: /var/log/postgresql/*.log
+    pipeline_stages:
+      - regex:
+          expression: '^(?P<timestamp>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3} \w+) \[(?P<pid>\d+)\] (?P<level>\w+):  (?P<message>.*)$'
+      - labels:
+          level:
+      - timestamp:
+          source: timestamp
+          format: '2006-01-02 15:04:05.000 MST'
+
+  # Redis logs
+  - job_name: redis-logs
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: redis-logs
+          service: cache
+          __path__: /var/log/redis/*.log
+    pipeline_stages:
+      - regex:
+          expression: '^(?P<pid>\d+):(?P<role>\w+) (?P<timestamp>\d{2} \w{3} \d{4} \d{2}:\d{2}:\d{2}\.\d{3}) (?P<level>[.*]) (?P<message>.*)$'
+      - labels:
+          level:
+
+  # Nginx/reverse proxy logs (if applicable)
+  - job_name: nginx-access
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: nginx-access
+          service: nginx
+          log_type: access
+          __path__: /var/log/nginx/access.log
+    pipeline_stages:
+      # Parse nginx access log format
+      - regex:
+          expression: '^(?P<remote_addr>[\w\.]+) - (?P<remote_user>[\w-]+) \[(?P<timestamp>.*?)\] "(?P<method>\w+) (?P<path>.*?) (?P<protocol>.*?)" (?P<status>\d+) (?P<body_bytes_sent>\d+) "(?P<http_referer>.*?)" "(?P<http_user_agent>.*?)"'
+      - labels:
+          method:
+          status:
+      - timestamp:
+          source: timestamp
+          format: '02/Jan/2006:15:04:05 -0700'
+
+  - job_name: nginx-error
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: nginx-error
+          service: nginx
+          log_type: error
+          __path__: /var/log/nginx/error.log
+    pipeline_stages:
+      - regex:
+          expression: '^(?P<timestamp>\d{4}/\d{2}/\d{2} \d{2}:\d{2}:\d{2}) \[(?P<level>\w+)\] (?P<message>.*)$'
+      - labels:
+          level:
+      - timestamp:
+          source: timestamp
+          format: '2006/01/02 15:04:05'
+
+  # System logs
+  - job_name: syslog
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: syslog
+          service: system
+          __path__: /var/log/syslog
+    pipeline_stages:
+      - regex:
+          expression: '^(?P<timestamp>\w{3} [ \d]{2} \d{2}:\d{2}:\d{2}) (?P<hostname>\S+) (?P<process>\S+?)(\[(?P<pid>\d+)\])?: (?P<message>.*)$'
+      - timestamp:
+          source: timestamp
+          format: 'Jan 02 15:04:05'
+          location: 'Local'
