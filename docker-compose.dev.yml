@@ -1,0 +1,94 @@
+# Development Override Configuration
+# Use with: docker compose -f docker-compose.yml -f docker-compose.dev.yml up
+version: '3.9'
+
+services:
+  postgres:
+    # Expose database port for local development tools
+    ports:
+      - "127.0.0.1:15432:5432"
+    # Reduced resource limits for development
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+
+  redis:
+    # Expose Redis port for local development tools
+    ports:
+      - "127.0.0.1:16379:6379"
+    # Reduced resource limits for development
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 128M
+
+  backend:
+    # Override build target for development
+    build:
+      context: ./packages/backend
+      dockerfile: Dockerfile
+      target: development
+    environment:
+      NODE_ENV: development
+      LOG_LEVEL: debug
+      # Development-specific settings
+      ENABLE_DEBUG: "true"
+      HOT_RELOAD: "true"
+    # Mount source code for hot-reloading in development
+    volumes:
+      - ./packages/backend:/app
+      - ./logs/backend:/app/logs
+      - /app/node_modules
+    # Expose port directly for development
+    ports:
+      - "127.0.0.1:7098:8000"
+    # Reduced resource limits for development
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+    # More verbose logging in development
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "2"
+
+  frontend:
+    # Override build target for development
+    build:
+      context: ./packages/frontend
+      dockerfile: Dockerfile
+      target: development
+    environment:
+      NODE_ENV: development
+      # Point to local backend for development
+      VITE_API_URL: http://127.0.0.1:7098
+    # Mount source code for hot-reloading in development
+    volumes:
+      - ./packages/frontend:/app
+      - /app/node_modules
+    # Expose port directly for development
+    ports:
+      - "127.0.0.1:8173:3000"
+    # Reduced resource limits for development
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+    # More verbose logging in development
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "2"
+
+  # Disable Nginx in development (use direct ports instead)
+  nginx:
+    profiles:
+      - production
