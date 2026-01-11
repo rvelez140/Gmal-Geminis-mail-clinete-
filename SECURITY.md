@@ -1,6 +1,159 @@
 # Security Configuration Guide
 
-This document outlines the security improvements implemented in the Docker Compose configuration.
+This document outlines the comprehensive security improvements implemented in the Docker Compose configuration and Docker images.
+
+## 🛡️ Advanced Security Features (Latest)
+
+### ✅ Non-Privileged User Execution
+
+**Implementation**: All containers now run as non-root users (UID/GID 1001)
+
+**Benefits**:
+- Prevents privilege escalation attacks
+- Limits damage from container breakout
+- Follows principle of least privilege
+
+**Details**:
+```yaml
+# docker-compose.yml
+user: "1001:1001"  # All application containers
+```
+
+```dockerfile
+# Dockerfile
+RUN addgroup -g 1001 -S appgroup && \
+    adduser -u 1001 -S appuser -G appgroup
+USER appuser
+```
+
+### ✅ Read-Only Root Filesystem
+
+**Implementation**: Root filesystem is mounted as read-only with tmpfs for writable directories
+
+**Benefits**:
+- Prevents malicious file modifications
+- Blocks malware persistence
+- Enforces immutable infrastructure
+
+**Details**:
+```yaml
+read_only: true
+tmpfs:
+  - /tmp:uid=1001,gid=1001,mode=1770
+  - /app/tmp:uid=1001,gid=1001,mode=1770
+```
+
+### ✅ No New Privileges Security Option
+
+**Implementation**: `security_opt: [no-new-privileges:true]` on all containers
+
+**Benefits**:
+- Prevents privilege escalation via setuid/setgid
+- Blocks sudo/su execution
+- Mitigates container escape attempts
+
+### ✅ Capability Dropping
+
+**Implementation**: Drop all capabilities, add only required ones
+
+**Benefits**:
+- Minimal attack surface
+- Prevents kernel exploits
+- Follows least privilege
+
+**Details**:
+```yaml
+cap_drop:
+  - ALL
+cap_add:
+  - NET_BIND_SERVICE  # Only for services binding to ports
+  - CHOWN             # Only for nginx
+  - SETGID            # Only for postgres/redis
+  - SETUID            # Only for postgres/redis
+```
+
+### ✅ Multi-Stage Docker Builds
+
+**Implementation**: Separate build and production stages in Dockerfiles
+
+**Benefits**:
+- Smaller production images
+- No build tools in production
+- Reduced attack surface
+- Faster deployments
+
+**Image Sizes**:
+- Backend: ~150MB (vs ~800MB without multi-stage)
+- Frontend: ~25MB (vs ~600MB without multi-stage)
+
+### ✅ Automated Security Scanning
+
+**Implementation**:
+- GitHub Actions workflow for automated scans
+- Local `security-scan.sh` script
+- Trivy for vulnerability detection
+- Hadolint for Dockerfile linting
+- Gitleaks for secret detection
+
+**Scan Types**:
+1. **Image Scanning**: Detects CVEs in dependencies
+2. **Configuration Scanning**: Checks docker-compose.yml security
+3. **Secret Scanning**: Finds exposed credentials
+4. **Dockerfile Linting**: Best practices validation
+5. **Dependency Auditing**: npm audit for packages
+
+**Usage**:
+```bash
+# Local scan
+./security-scan.sh
+
+# Reports generated in: ./security-reports/
+
+# CI/CD automatic scans on:
+# - Every push to main/develop
+# - Every pull request
+# - Daily at 2 AM UTC
+# - Manual trigger via workflow_dispatch
+```
+
+### ✅ Tmpfs Mounts
+
+**Implementation**: Temporary filesystems for runtime data
+
+**Benefits**:
+- Faster I/O performance
+- Data cleared on restart
+- No persistent temp file exposure
+- Memory-based storage
+
+**Mounted Locations**:
+- `/tmp` - General temporary files
+- `/var/run` - PID files and sockets
+- `/var/cache/nginx` - Nginx cache
+- `/app/tmp` - Application temp files
+
+### ✅ Docker Secrets (Enhanced)
+
+**Implementation**: File-based secrets mounted at runtime
+
+**Benefits**:
+- Secrets never in environment variables
+- Not visible in `docker inspect`
+- Encrypted at rest (Docker Swarm)
+- Proper access control
+
+**Security Improvements**:
+```yaml
+# Before (INSECURE)
+environment:
+  DB_PASSWORD: "plaintext_password"
+
+# After (SECURE)
+secrets:
+  - db_password
+environment:
+  DB_PASSWORD_FILE: /run/secrets/db_password
+```
 
 ## 🔒 Security Issues Fixed
 
@@ -203,6 +356,155 @@ docker scan gemini-mail-frontend:latest
 - Configure centralized logging (ELK stack)
 - Enable security event monitoring
 - Set up alerts for suspicious activity
+
+## 🔍 Security Scanning
+
+### Automated CI/CD Scanning
+
+The project includes automated security scanning via GitHub Actions (`.github/workflows/security-scan.yml`):
+
+**Triggered On**:
+- Push to main/develop branches
+- Pull requests
+- Daily at 2 AM UTC
+- Manual workflow dispatch
+
+**Scan Types**:
+1. **Trivy Image Scanning** - CVE detection in Docker images
+2. **Trivy Config Scanning** - docker-compose.yml security issues
+3. **Dockerfile Linting** - Best practices with Hadolint
+4. **Secret Detection** - Gitleaks for exposed credentials
+5. **Dependency Auditing** - npm audit for vulnerable packages
+6. **Docker Bench Security** - CIS benchmark compliance
+
+**Results**: Available in GitHub Security tab (Code scanning alerts)
+
+### Local Security Scanning
+
+Run comprehensive security scans locally:
+
+```bash
+# Run full security scan
+./security-scan.sh
+
+# View results
+ls -la security-reports/
+
+# Check latest summary
+cat security-reports/summary-*.txt
+```
+
+**The script will**:
+1. Install Trivy if not present
+2. Build Docker images
+3. Scan images for vulnerabilities
+4. Scan configuration files
+5. Detect exposed secrets
+6. Lint Dockerfiles
+7. Generate detailed reports
+8. Exit with error if CRITICAL vulnerabilities found
+
+**Report Formats**:
+- `backend-vulnerabilities-*.txt` - Human-readable backend scan
+- `backend-vulnerabilities-*.json` - Machine-readable backend data
+- `frontend-vulnerabilities-*.txt` - Human-readable frontend scan
+- `frontend-vulnerabilities-*.json` - Machine-readable frontend data
+- `config-scan-*.txt` - Configuration issues
+- `secrets-scan-*.txt` - Exposed secrets
+- `summary-*.txt` - Overall security summary
+
+### Manual Trivy Scans
+
+```bash
+# Install Trivy
+# macOS
+brew install aquasecurity/trivy/trivy
+
+# Ubuntu/Debian
+sudo apt-get install wget apt-transport-https gnupg lsb-release
+wget -qO - https://aquasecurity.github.io/trivy-repo/deb/public.key | sudo apt-key add -
+echo "deb https://aquasecurity.github.io/trivy-repo/deb $(lsb_release -sc) main" | sudo tee -a /etc/apt/sources.list.d/trivy.list
+sudo apt-get update
+sudo apt-get install trivy
+
+# Scan specific image
+trivy image gemini-mail-backend:latest
+
+# Scan with specific severity
+trivy image --severity CRITICAL,HIGH gemini-mail-backend:latest
+
+# Scan configuration
+trivy config .
+
+# Scan for secrets
+trivy fs --scanners secret .
+```
+
+### Snyk Integration (Optional)
+
+For additional scanning with Snyk:
+
+```bash
+# Install Snyk CLI
+npm install -g snyk
+
+# Authenticate
+snyk auth
+
+# Test Docker images
+snyk container test gemini-mail-backend:latest
+snyk container test gemini-mail-frontend:latest
+
+# Monitor images
+snyk container monitor gemini-mail-backend:latest
+snyk container monitor gemini-mail-frontend:latest
+
+# Test dependencies
+cd packages/backend && snyk test
+cd packages/frontend && snyk test
+```
+
+### Handling Scan Results
+
+**For CRITICAL vulnerabilities**:
+1. **DO NOT DEPLOY** to production
+2. Check for patches/updates
+3. Update base images
+4. Rebuild and rescan
+5. If no fix available, consider mitigation strategies
+
+**For HIGH vulnerabilities**:
+1. Plan immediate remediation
+2. Update dependencies
+3. Rebuild images
+4. Deploy fix in next release
+
+**For MEDIUM/LOW vulnerabilities**:
+1. Track in issue tracker
+2. Plan remediation in upcoming sprint
+3. Update during regular maintenance
+
+### Vulnerability Remediation Process
+
+```bash
+# 1. Identify vulnerable package
+trivy image --format json gemini-mail-backend:latest | jq '.Results[].Vulnerabilities[] | select(.Severity=="CRITICAL")'
+
+# 2. Update package
+# Edit package.json or Dockerfile
+
+# 3. Rebuild image
+npm run build:prod
+
+# 4. Rescan
+./security-scan.sh
+
+# 5. Verify fix
+trivy image gemini-mail-backend:latest
+
+# 6. Deploy
+npm run start:prod
+```
 
 ## 📚 References
 

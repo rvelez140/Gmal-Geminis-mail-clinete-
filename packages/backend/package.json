@@ -1,0 +1,27 @@
+{
+  "name": "gemini-mail-backend",
+  "version": "2.0.0",
+  "description": "Gemini Mail Enterprise - Backend API",
+  "main": "server.js",
+  "scripts": {
+    "dev": "nodemon server.js",
+    "start": "node server.js",
+    "build": "echo 'No build step required for plain Node.js'",
+    "test": "echo 'No tests configured yet'",
+    "migrate": "echo 'Run database migrations'",
+    "seed": "echo 'Seed database'"
+  },
+  "keywords": [
+    "mail",
+    "api",
+    "backend"
+  ],
+  "author": "Gemini Mail Enterprise",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.18.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.0"
+  }
+}

@@ -14,6 +14,10 @@ services:
       - db_password
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    # tmpfs for temporary files (improves security and performance)
+    tmpfs:
+      - /tmp
+      - /var/run/postgresql
     # DO NOT expose ports in production - use Nginx reverse proxy
     # ports:
     #   - "127.0.0.1:15432:5432"
@@ -27,6 +31,16 @@ services:
       - gemini-network
     labels:
       - "com.example.description=Gemini Mail PostgreSQL Database"
+    # Security Options
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - SETGID
+      - SETUID
+      - DAC_OVERRIDE
     # Resource Limits
     deploy:
       resources:
@@ -53,6 +67,9 @@ services:
       - redis_password
     volumes:
       - redis_data:/data
+    # tmpfs for temporary files
+    tmpfs:
+      - /tmp
     # DO NOT expose ports in production - use Nginx reverse proxy if needed
     # ports:
     #   - "127.0.0.1:16379:6379"
@@ -66,6 +83,14 @@ services:
       - gemini-network
     labels:
       - "com.example.description=Gemini Mail Redis Cache"
+    # Security Options
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - SETGID
+      - SETUID
     # Resource Limits
     deploy:
       resources:
@@ -87,9 +112,11 @@ services:
     build:
       context: ./packages/backend
       dockerfile: Dockerfile
+      target: production
     image: gemini-mail-backend:latest
     container_name: gemini-mail-backend
     restart: unless-stopped
+    user: "1001:1001"  # Run as non-privileged user
     working_dir: /app
     environment:
       NODE_ENV: production
@@ -107,6 +134,12 @@ services:
     # PRODUCTION: No source code volumes - code is baked into image
     volumes:
       - backend_logs:/app/logs
+    # tmpfs for temporary files and uploads
+    tmpfs:
+      - /app/tmp:uid=1001,gid=1001,mode=1770
+      - /tmp:uid=1001,gid=1001,mode=1770
+    # Read-only root filesystem for enhanced security
+    read_only: true
     # DO NOT expose ports directly - use Nginx reverse proxy
     # ports:
     #   - "127.0.0.1:7098:8000"
@@ -126,6 +159,13 @@ services:
       - gemini-network
     labels:
       - "com.example.description=Gemini Mail Backend API"
+    # Security Options
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE
     # Resource Limits
     deploy:
       resources:
@@ -147,16 +187,24 @@ services:
     build:
       context: ./packages/frontend
       dockerfile: Dockerfile
+      target: production
     image: gemini-mail-frontend:latest
     container_name: gemini-mail-frontend
     restart: unless-stopped
+    user: "1001:1001"  # Run as non-privileged user
     working_dir: /app
     environment:
       NODE_ENV: production
       VITE_API_URL: ${VITE_API_URL:-http://localhost/api}
       VITE_APP_NAME: ${VITE_APP_NAME:-Gemini Mail Enterprise}
     # PRODUCTION: No source code volumes - code is baked into image
-    # volumes are removed for production
+    # tmpfs for nginx temporary files
+    tmpfs:
+      - /tmp/nginx:uid=1001,gid=1001,mode=1770
+      - /var/cache/nginx:uid=1001,gid=1001,mode=1770
+      - /var/run:uid=1001,gid=1001,mode=1770
+    # Read-only root filesystem for enhanced security
+    read_only: true
     # DO NOT expose ports directly - use Nginx reverse proxy
     # ports:
     #   - "127.0.0.1:8173:3000"
@@ -173,6 +221,16 @@ services:
       - gemini-network
     labels:
       - "com.example.description=Gemini Mail Frontend Web Application"
+    # Security Options
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE
+      - CHOWN
+      - SETGID
+      - SETUID
     # Resource Limits
     deploy:
       resources:
@@ -202,6 +260,13 @@ services:
       - ./nginx/conf.d:/etc/nginx/conf.d:ro
       - ./nginx/ssl:/etc/nginx/ssl:ro
       - nginx_logs:/var/log/nginx
+    # tmpfs for nginx temporary files
+    tmpfs:
+      - /var/cache/nginx:mode=1770
+      - /var/run:mode=1770
+      - /tmp:mode=1770
+    # Read-only root filesystem for enhanced security
+    read_only: true
     depends_on:
       - backend
       - frontend
@@ -215,6 +280,16 @@ services:
       - gemini-network
     labels:
       - "com.example.description=Gemini Mail Nginx Reverse Proxy"
+    # Security Options
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE
+      - CHOWN
+      - SETGID
+      - SETUID
     # Resource Limits
     deploy:
       resources:
