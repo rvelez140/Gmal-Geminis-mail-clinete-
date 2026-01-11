@@ -36,6 +36,9 @@ RUN npm ci --only=production && \
 COPY --from=builder /app/src ./src
 COPY --from=builder /app/logs ./logs
 
+# Copy PM2 ecosystem configuration
+COPY ecosystem.config.js ./
+
 # Create logs directory if not exists
 RUN mkdir -p logs
 
@@ -46,5 +49,5 @@ EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=10s --start-period=20s --retries=3 \
   CMD node -e "require('http').get('http://localhost:8000/api/health', (r) => {if (r.statusCode !== 200) throw new Error(r.statusCode)})"
 
-# Start application with PM2 in no-daemon mode
-CMD ["pm2-runtime", "start", "src/server.js", "--name", "gemini-backend", "--max-memory-restart", "500M"]
+# Start application with PM2 in cluster mode using ecosystem file
+CMD ["pm2-runtime", "start", "ecosystem.config.js"]
