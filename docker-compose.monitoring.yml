@@ -1,0 +1,67 @@
+# Docker Compose Override for Monitoring Stack
+# Use this file to start only the monitoring services or to customize monitoring configuration
+#
+# Usage:
+#   docker-compose -f docker-compose.yml -f docker-compose.monitoring.yml up -d
+#
+# Or to start ONLY monitoring services:
+#   docker-compose -f docker-compose.monitoring.yml up -d
+
+version: '3.9'
+
+services:
+  # Override backend to disable monitoring (if needed)
+  # Uncomment this section to run backend without OpenTelemetry
+  # backend:
+  #   environment:
+  #     OTEL_SDK_DISABLED: "true"
+
+  # Optional: Add development-specific monitoring configuration
+  prometheus:
+    environment:
+      - PROMETHEUS_RETENTION_TIME=${PROMETHEUS_RETENTION_TIME:-7d}
+    # Expose Prometheus publicly for development (remove in production)
+    # ports:
+    #   - "9090:9090"
+
+  grafana:
+    environment:
+      # Enable anonymous access for development
+      - GF_AUTH_ANONYMOUS_ENABLED=${GRAFANA_ANONYMOUS:-false}
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Viewer
+      # Enable development mode
+      - GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH=/etc/grafana/provisioning/dashboards/json/application-overview.json
+    # Expose Grafana publicly for development (remove in production)
+    # ports:
+    #   - "3001:3000"
+
+  # Optional: Add Tempo for additional tracing capabilities
+  # tempo:
+  #   image: grafana/tempo:2.3.1
+  #   container_name: gemini-mail-tempo
+  #   command: [ "-config.file=/etc/tempo.yaml" ]
+  #   volumes:
+  #     - ./infrastructure/monitoring/tempo/tempo.yaml:/etc/tempo.yaml
+  #     - tempo_data:/tmp/tempo
+  #   ports:
+  #     - "127.0.0.1:3200:3200"   # tempo
+  #     - "127.0.0.1:4317:4317"   # otlp grpc
+  #   networks:
+  #     - gemini-network
+
+  # Optional: Add Mimir for long-term metrics storage
+  # mimir:
+  #   image: grafana/mimir:2.10.4
+  #   container_name: gemini-mail-mimir
+  #   command: ["-config.file=/etc/mimir.yaml"]
+  #   volumes:
+  #     - ./infrastructure/monitoring/mimir/mimir.yaml:/etc/mimir.yaml
+  #     - mimir_data:/data
+  #   ports:
+  #     - "127.0.0.1:9009:9009"
+  #   networks:
+  #     - gemini-network
+
+# volumes:
+#   tempo_data:
+#   mimir_data:
