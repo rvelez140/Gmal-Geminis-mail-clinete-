@@ -4,6 +4,7 @@
 # Multi-stage build for minimal attack surface
 # Non-privileged user execution
 # Read-only root filesystem compatible
+# Optimized caching for faster builds
 # ============================================================================
 
 # Build Stage
@@ -18,7 +19,7 @@ RUN apk add --no-cache \
 
 WORKDIR /build
 
-# Copy package files
+# Copy package files (leverages Docker cache)
 COPY package*.json ./
 COPY tsconfig*.json ./
 
@@ -72,7 +73,7 @@ USER appuser
 # Expose port (app should listen on this)
 EXPOSE 8000
 
-# Health check
+# Health check - use wget for Alpine compatibility
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
     CMD wget --no-verbose --tries=1 --spider http://localhost:8000/api/health || exit 1
 
