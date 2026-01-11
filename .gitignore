@@ -1,37 +1,59 @@
-# Dependencies
-node_modules/
-yarn.lock
-package-lock.json
+# Gemini Mail Enterprise - Git Ignore
 
-# Production
-dist/
-build/
-out/
-.next/
-.nuxt/
-.cache/
+# ============================================================================
+# SECURITY: Never commit sensitive files
+# ============================================================================
 
 # Environment variables
 .env
 .env.local
 .env.*.local
 
-# Secrets (NEVER commit)
-secrets/*
-!secrets/.gitkeep
+# Secrets directory (CRITICAL - contains passwords and tokens)
+secrets/*.txt
+secrets/*.key
+secrets/*.pem
+secrets/*.crt
 
-# IDE & Editor
-.vscode/
-.idea/
-*.swp
-*.swo
-*~
-.DS_Store
-.sublime-project
-.sublime-workspace
-*.vim
+# SSL certificates and private keys
+nginx/ssl/*.pem
+nginx/ssl/*.key
+nginx/ssl/*.crt
+nginx/ssl/*.p12
+nginx/ssl/*.pfx
 
+# ============================================================================
+# Dependencies
+# ============================================================================
+
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# ============================================================================
+# Build outputs
+# ============================================================================
+
+dist/
+dist-ssr/
+build/
+.next/
+.nuxt/
+out/
+.cache/
+*.local
+
+# ============================================================================
 # Logs
+# ============================================================================
+
+logs/
 logs/*
 !logs/.gitkeep
 *.log
@@ -40,47 +62,121 @@ yarn-debug.log*
 yarn-error.log*
 lerna-debug.log*
 
-# Testing
-coverage/
-.nyc_output/
-.mocha/
+# Docker logs
+logs/backend/
+logs/frontend/
 
+# ============================================================================
+# Operating System
+# ============================================================================
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Linux
+*~
+.directory
+.Trash-*
+
+# ============================================================================
+# IDE / Editors
+# ============================================================================
+
+# VSCode
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+*.code-workspace
+
+# JetBrains IDEs
+.idea/
+*.iml
+*.iws
+*.ipr
+
+# Sublime Text
+*.sublime-project
+*.sublime-workspace
+
+# Vim
+[._]*.s[a-v][a-z]
+[._]*.sw[a-p]
+[._]s[a-rt-v][a-z]
+[._]ss[a-gi-z]
+[._]sw[a-p]
+*.swp
+*.swo
+*.vim
+
+# ============================================================================
+# Testing
+# ============================================================================
+
+coverage/
+*.coverage
+.nyc_output/
+.pytest_cache/
+.jest_cache/
+
+# ============================================================================
 # Docker
+# ============================================================================
+
+# Docker volumes (if local driver creates directories)
 docker-compose.override.yml
 
-# OS
-.DS_Store
-Thumbs.db
-.windows-build-tools
+# ============================================================================
+# Temporary files
+# ============================================================================
 
-# Temp files
-tmp/
-temp/
 *.tmp
+*.temp
+*.swp
+*.swo
+*.bak
+*.cache
 
+# ============================================================================
 # Database
-*.db
+# ============================================================================
+
 *.sqlite
 *.sqlite3
-*.postgres
+*.db
 
-# Data
-data/
-dump.sql
+# ============================================================================
+# Backups
+# ============================================================================
 
-# Coverage reports
-.coverage
-htmlcov/
+backups/
+*.backup
+*.dump
+*.sql.gz
 
-# Storybook
-storybook-static/
+# ============================================================================
+# Security Scanning Reports
+# ============================================================================
 
-# Git
-.git/
+security-reports/
+*.sarif
+trivy-*.json
+trivy-*.txt
 
-# CI/CD
-.gitlab-ci.yml
-.travis.yml
+# ============================================================================
+# Keep structure
+# ============================================================================
 
-# Docker override example
-docker-compose.override.yml.example
+# Keep README files in otherwise-ignored directories
+!secrets/README.md
+!nginx/ssl/README.md

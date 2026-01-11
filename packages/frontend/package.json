@@ -1,14 +1,25 @@
 {
   "name": "gemini-mail-frontend",
   "version": "2.0.0",
+  "description": "Gemini Mail Enterprise - Frontend Application",
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "vite --host 0.0.0.0",
     "build": "vite build",
     "preview": "vite preview",
     "test": "vitest"
   },
+  "keywords": [
+    "mail",
+    "frontend",
+    "react",
+    "vite",
+    "gemini",
+    "enterprise"
+  ],
+  "author": "Gemini Mail Enterprise",
+  "license": "MIT",
   "dependencies": {
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
@@ -19,5 +30,9 @@
     "@vitejs/plugin-react": "^4.2.0",
     "vite": "^5.0.0",
     "vitest": "^1.0.0"
+  },
+  "engines": {
+    "node": ">=20.0.0",
+    "npm": ">=9.0.0"
   }
 }

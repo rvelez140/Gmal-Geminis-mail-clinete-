@@ -14,8 +14,13 @@ services:
       - db_password
     volumes:
       - postgres_data:/var/lib/postgresql/data
-    ports:
-      - "127.0.0.1:15432:5432"
+    # tmpfs for temporary files (improves security and performance)
+    tmpfs:
+      - /tmp
+      - /var/run/postgresql
+    # DO NOT expose ports in production - use Nginx reverse proxy
+    # ports:
+    #   - "127.0.0.1:15432:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U gemini_user -d gemini_mail"]
       interval: 10s
@@ -26,6 +31,31 @@ services:
       - gemini-network
     labels:
       - "com.example.description=Gemini Mail PostgreSQL Database"
+    # Security Options
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - SETGID
+      - SETUID
+      - DAC_OVERRIDE
+    # Resource Limits
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+        reservations:
+          cpus: '0.5'
+          memory: 256M
+    # Log Configuration
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   # Redis Cache
   redis:
@@ -37,8 +67,12 @@ services:
       - redis_password
     volumes:
       - redis_data:/data
-    ports:
-      - "127.0.0.1:16379:6379"
+    # tmpfs for temporary files
+    tmpfs:
+      - /tmp
+    # DO NOT expose ports in production - use Nginx reverse proxy if needed
+    # ports:
+    #   - "127.0.0.1:16379:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
@@ -49,15 +83,40 @@ services:
       - gemini-network
     labels:
       - "com.example.description=Gemini Mail Redis Cache"
+    # Security Options
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - SETGID
+      - SETUID
+    # Resource Limits
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+        reservations:
+          cpus: '0.25'
+          memory: 128M
+    # Log Configuration
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   # Backend API
   backend:
     build:
       context: ./packages/backend
       dockerfile: Dockerfile
+      target: production
     image: gemini-mail-backend:latest
     container_name: gemini-mail-backend
     restart: unless-stopped
+    user: "1001:1001"  # Run as non-privileged user
     working_dir: /app
     environment:
       NODE_ENV: production
@@ -67,24 +126,31 @@ services:
       JWT_SECRET_FILE: /run/secrets/jwt_secret
       ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
       ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@local.com}
-      LOG_LEVEL: info
+      LOG_LEVEL: ${LOG_LEVEL:-info}
     secrets:
       - db_password
       - redis_password
       - jwt_secret
+    # PRODUCTION: No source code volumes - code is baked into image
     volumes:
-      - ./packages/backend:/app
-      - ./logs/backend:/app/logs
-      - /app/node_modules
-    ports:
-      - "127.0.0.1:7098:8000"
+      - backend_logs:/app/logs
+    # tmpfs for temporary files and uploads
+    tmpfs:
+      - /app/tmp:uid=1001,gid=1001,mode=1770
+      - /tmp:uid=1001,gid=1001,mode=1770
+    # Read-only root filesystem for enhanced security
+    read_only: true
+    # DO NOT expose ports directly - use Nginx reverse proxy
+    # ports:
+    #   - "127.0.0.1:7098:8000"
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "node", "-e", "require('http').get('http://localhost:8000/api/health', (r) => {if (r.statusCode !== 200) throw new Error(r.statusCode)})"]
+      # Use wget instead of curl (more commonly available in alpine)
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8000/api/health"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -93,29 +159,60 @@ services:
       - gemini-network
     labels:
       - "com.example.description=Gemini Mail Backend API"
+    # Security Options
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE
+    # Resource Limits
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 1G
+        reservations:
+          cpus: '1.0'
+          memory: 512M
+    # Log Configuration
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "5"
 
   # Frontend Web App
   frontend:
     build:
       context: ./packages/frontend
       dockerfile: Dockerfile
+      target: production
     image: gemini-mail-frontend:latest
     container_name: gemini-mail-frontend
     restart: unless-stopped
+    user: "1001:1001"  # Run as non-privileged user
     working_dir: /app
     environment:
       NODE_ENV: production
-      VITE_API_URL: http://127.0.0.1:7098
-      VITE_APP_NAME: Gemini Mail Enterprise
-    volumes:
-      - ./packages/frontend:/app
-      - /app/node_modules
-    ports:
-      - "127.0.0.1:8173:3000"
+      VITE_API_URL: ${VITE_API_URL:-http://localhost/api}
+      VITE_APP_NAME: ${VITE_APP_NAME:-Gemini Mail Enterprise}
+    # PRODUCTION: No source code volumes - code is baked into image
+    # tmpfs for nginx temporary files
+    tmpfs:
+      - /tmp/nginx:uid=1001,gid=1001,mode=1770
+      - /var/cache/nginx:uid=1001,gid=1001,mode=1770
+      - /var/run:uid=1001,gid=1001,mode=1770
+    # Read-only root filesystem for enhanced security
+    read_only: true
+    # DO NOT expose ports directly - use Nginx reverse proxy
+    # ports:
+    #   - "127.0.0.1:8173:3000"
     depends_on:
       - backend
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000/"]
+      # Use wget instead of curl (more commonly available in alpine)
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -124,6 +221,90 @@ services:
       - gemini-network
     labels:
       - "com.example.description=Gemini Mail Frontend Web Application"
+    # Security Options
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE
+      - CHOWN
+      - SETGID
+      - SETUID
+    # Resource Limits
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+        reservations:
+          cpus: '0.5'
+          memory: 256M
+    # Log Configuration
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "25m"
+        max-file: "3"
+
+  # Nginx Reverse Proxy
+  nginx:
+    image: nginx:alpine
+    container_name: gemini-mail-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+      - nginx_logs:/var/log/nginx
+    # tmpfs for nginx temporary files
+    tmpfs:
+      - /var/cache/nginx:mode=1770
+      - /var/run:mode=1770
+      - /tmp:mode=1770
+    # Read-only root filesystem for enhanced security
+    read_only: true
+    depends_on:
+      - backend
+      - frontend
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    networks:
+      - gemini-network
+    labels:
+      - "com.example.description=Gemini Mail Nginx Reverse Proxy"
+    # Security Options
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE
+      - CHOWN
+      - SETGID
+      - SETUID
+    # Resource Limits
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+        reservations:
+          cpus: '0.25'
+          memory: 128M
+    # Log Configuration
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "25m"
+        max-file: "5"
 
 # Persistent Volumes
 volumes:
@@ -135,6 +316,14 @@ volumes:
     driver: local
     labels:
       - "com.example.description=Redis Data Volume"
+  backend_logs:
+    driver: local
+    labels:
+      - "com.example.description=Backend Application Logs"
+  nginx_logs:
+    driver: local
+    labels:
+      - "com.example.description=Nginx Access and Error Logs"
 
 # Secrets (Files)
 secrets:

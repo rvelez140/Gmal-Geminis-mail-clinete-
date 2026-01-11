@@ -1,64 +1,134 @@
-# Backend Dockerfile - Gemini Mail Enterprise
-# Multi-stage build for optimized production image with cache optimization
+# ============================================================================
+# Backend Dockerfile - Security Hardened
+# ============================================================================
+# Multi-stage build for minimal attack surface
+# Non-privileged user execution
+# Read-only root filesystem compatible
+# Optimized caching for faster builds
+# ============================================================================
 
-# Stage 1: Base image with system dependencies
-FROM node:20-alpine AS base
+# Build Stage
+FROM node:20-alpine AS builder
 
-# Install system dependencies in a single layer
+# Install build dependencies
 RUN apk add --no-cache \
-    dumb-init \
+    python3 \
+    make \
+    g++ \
     && rm -rf /var/cache/apk/*
 
-WORKDIR /app
+WORKDIR /build
 
-# Stage 2: Dependencies (leverages Docker cache)
-FROM base AS dependencies
-
-# Copy only package files first (cache layer)
+# Copy package files (leverages Docker cache)
 COPY package*.json ./
+COPY tsconfig*.json ./
 
-# Install production dependencies in a separate layer
+# Install dependencies
 RUN npm ci --only=production && \
     npm cache clean --force
 
-# Store production node_modules
-RUN cp -R node_modules /tmp/node_modules_prod
-
-# Install all dependencies (including dev for potential build steps)
-RUN npm ci && \
-    npm cache clean --force
-
-# Stage 3: Production image
-FROM base AS production
-
-# Create non-root user early
-RUN addgroup -g 1001 -S nodejs && \
-    adduser -S nodejs -u 1001
-
-# Copy production dependencies from dependencies stage
-COPY --from=dependencies --chown=nodejs:nodejs /tmp/node_modules_prod ./node_modules
-
-# Copy package files
-COPY --chown=nodejs:nodejs package*.json ./
-
 # Copy application code
-COPY --chown=nodejs:nodejs . .
+COPY . .
 
-# Create logs directory with proper permissions
-RUN mkdir -p logs && \
-    chown -R nodejs:nodejs logs
+# Build application (if using TypeScript)
+RUN if [ -f "tsconfig.json" ]; then npm run build; fi
 
-# Switch to non-root user
-USER nodejs
+# ============================================================================
+# Production Stage
+# ============================================================================
+FROM node:20-alpine AS production
 
-# Expose port
+# Install security updates and required runtime tools
+RUN apk update && \
+    apk upgrade && \
+    apk add --no-cache \
+    wget \
+    dumb-init \
+    && rm -rf /var/cache/apk/*
+
+# Create non-privileged user and group
+RUN addgroup -g 1001 -S appgroup && \
+    adduser -u 1001 -S appuser -G appgroup
+
+# Set working directory
+WORKDIR /app
+
+# Create necessary directories with correct permissions
+RUN mkdir -p /app/logs /app/tmp /app/uploads && \
+    chown -R appuser:appgroup /app
+
+# Copy application from builder
+COPY --from=builder --chown=appuser:appgroup /build/node_modules ./node_modules
+COPY --from=builder --chown=appuser:appgroup /build/package*.json ./
+
+# Copy built application or source code
+COPY --chown=appuser:appgroup . .
+
+# If dist directory exists from build, ensure permissions
+RUN if [ -d "dist" ]; then chown -R appuser:appgroup dist; fi
+
+# Switch to non-privileged user
+USER appuser
+
+# Expose port (app should listen on this)
 EXPOSE 8000
 
-# Health check using Node.js (no external dependencies)
-# Lightweight check that doesn't require curl/wget
-HEALTHCHECK --interval=30s --timeout=10s --start-period=20s --retries=3 \
-  CMD node -e "require('http').get('http://localhost:8000/api/health', (r) => {if (r.statusCode !== 200) throw new Error(r.statusCode)})"
+# Health check - use wget for Alpine compatibility
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+    CMD wget --no-verbose --tries=1 --spider http://localhost:8000/api/health || exit 1
 
-# Start application with dumb-init for proper signal handling
-# dumb-init handles signals properly and reaps zombie processes
-CMD ["dumb-init", "node", "src/server.js"]
+# Use dumb-init to handle signals properly
+ENTRYPOINT ["/usr/bin/dumb-init", "--"]
+
+# Start application
+CMD ["node", "server.js"]
+
+# ============================================================================
+# Development Stage
+# ============================================================================
+FROM node:20-alpine AS development
+
+# Install development tools and security updates
+RUN apk update && \
+    apk upgrade && \
+    apk add --no-cache \
+    wget \
+    dumb-init \
+    git \
+    && rm -rf /var/cache/apk/*
+
+# Create non-privileged user
+RUN addgroup -g 1001 -S appgroup && \
+    adduser -u 1001 -S appuser -G appgroup
+
+WORKDIR /app
+
+# Create directories for development
+RUN mkdir -p /app/logs /app/tmp /app/uploads /app/node_modules && \
+    chown -R appuser:appgroup /app
+
+# Copy package files
+COPY --chown=appuser:appgroup package*.json ./
+
+# Switch to non-privileged user for npm install
+USER appuser
+
+# Install all dependencies (including dev)
+RUN npm install && npm cache clean --force
+
+# Switch back to root temporarily to set up volume permissions
+USER root
+RUN chown -R appuser:appgroup /app
+
+# Switch back to non-privileged user
+USER appuser
+
+EXPOSE 8000
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+    CMD wget --no-verbose --tries=1 --spider http://localhost:8000/api/health || exit 1
+
+ENTRYPOINT ["/usr/bin/dumb-init", "--"]
+
+# Development mode with hot-reload
+CMD ["npm", "run", "dev"]
