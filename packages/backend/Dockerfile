@@ -38,13 +38,14 @@ RUN if [ -f "tsconfig.json" ]; then npm run build; fi
 # ============================================================================
 FROM node:20-alpine AS production
 
-# Install security updates and required runtime tools
+# Install security updates, required runtime tools, and PM2
 RUN apk update && \
     apk upgrade && \
     apk add --no-cache \
     wget \
     dumb-init \
-    && rm -rf /var/cache/apk/*
+    && rm -rf /var/cache/apk/* && \
+    npm install -g pm2
 
 # Create non-privileged user and group
 RUN addgroup -g 1001 -S appgroup && \
@@ -80,8 +81,9 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
 # Use dumb-init to handle signals properly
 ENTRYPOINT ["/usr/bin/dumb-init", "--"]
 
-# Start application
-CMD ["node", "server.js"]
+# Start application with PM2 in cluster mode using ecosystem.config.js
+# Falls back to node server.js if ecosystem.config.js doesn't exist
+CMD ["sh", "-c", "if [ -f ecosystem.config.js ]; then pm2-runtime start ecosystem.config.js; else node server.js; fi"]
 
 # ============================================================================
 # Development Stage
