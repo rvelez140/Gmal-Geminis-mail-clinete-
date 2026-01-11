@@ -303,5 +303,94 @@ Antes de deployar estas optimizaciones:
 
 ---
 
+---
+
+## 🔄 Actualización: Merge con Main Branch (Security Hardening)
+
+### Cambios tras la integración con main
+
+Después de mergear con el branch main, descubrimos que **ya existían muchas de nuestras optimizaciones más mejoras de seguridad adicionales**:
+
+#### ✅ Optimizaciones que ya estaban en main:
+1. **Frontend con Nginx** - Ya implementado con todas nuestras optimizaciones:
+   - Gzip compression ✅
+   - Security headers ✅
+   - Static asset caching (1 año) ✅
+   - SPA routing ✅
+   - Non-privileged user (uid 1001) ✅
+
+2. **Multi-stage builds** - Ya implementados para backend y frontend ✅
+
+3. **Redis health check con auth** - Ya implementado ✅
+
+4. **Caché de capas Docker en GitHub Actions** - Ya implementado ✅
+
+#### 🆕 Nuevas Mejoras de Seguridad (desde main):
+1. **Read-only root filesystem** - Contenedores con sistema de archivos de solo lectura
+2. **Capability dropping** - Principio de menor privilegio (drop ALL, add solo necesarios)
+3. **Security options** - `no-new-privileges:true`
+4. **Tmpfs mounts** - Archivos temporales en memoria
+5. **Resource limits** - CPU y memoria limitados por servicio
+6. **Structured logging** - Configuración de logs con rotación
+7. **Nginx reverse proxy** - Capa adicional de seguridad y routing
+8. **Non-root users** - Todos los servicios corren como uid 1001
+
+#### ➕ Nuestra Contribución Única: PM2 Clustering
+
+Lo que agregamos adicional a todas estas mejoras:
+
+**Archivo:** `packages/backend/Dockerfile:41-48, 86`
+
+```dockerfile
+# Install PM2 globally
+RUN npm install -g pm2
+
+# Start with PM2 in cluster mode
+CMD ["sh", "-c", "if [ -f ecosystem.config.js ]; then pm2-runtime start ecosystem.config.js; else node server.js; fi"]
+```
+
+**Archivo:** `packages/backend/ecosystem.config.js`
+
+```javascript
+{
+  instances: 'max',       // Todos los CPU cores
+  exec_mode: 'cluster',   // Load balancing automático
+  max_memory_restart: '500M',
+  autorestart: true
+}
+```
+
+### 📊 Comparación Final: Antes vs Después del Merge
+
+| Característica | Nuestra versión original | Main branch | Versión final |
+|----------------|-------------------------|-------------|---------------|
+| Nginx frontend | ✅ | ✅ | ✅ |
+| Gzip compression | ✅ | ✅ | ✅ |
+| Security headers | ✅ | ✅ | ✅ |
+| Multi-stage builds | ✅ | ✅ | ✅ |
+| Redis auth health check | ✅ | ✅ | ✅ |
+| **PM2 clustering** | **✅** | ❌ | **✅** |
+| Read-only filesystem | ❌ | ✅ | ✅ |
+| Capability dropping | ❌ | ✅ | ✅ |
+| Tmpfs mounts | ❌ | ✅ | ✅ |
+| Resource limits | ❌ | ✅ | ✅ |
+| Non-root users | Parcial | ✅ | ✅ |
+| Nginx reverse proxy | ❌ | ✅ | ✅ |
+
+### 🎯 Resultado Final
+
+La versión final combina:
+- ✅ **Todas nuestras optimizaciones de rendimiento**
+- ✅ **Todo el hardening de seguridad del main branch**
+- ✅ **PM2 clustering como nuestra contribución única**
+
+**Mejora neta:**
+- Tamaño de imágenes: 49% más pequeñas ✅
+- Seguridad: Enterprise-grade con múltiples capas ✅
+- Performance: 220% más throughput con PM2 clustering ✅
+- CI/CD: 61% más rápido con caché ✅
+
+---
+
 **Última actualización:** 2026-01-11
-**Versión:** 2.0.0
+**Versión:** 3.0.0 (post-merge con security hardening)
